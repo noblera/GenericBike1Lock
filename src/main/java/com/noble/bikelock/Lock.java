@@ -1,5 +1,8 @@
 package com.noble.bikelock;
 
+import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothServerSocket;
+import android.bluetooth.BluetoothSocket;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.view.View;
@@ -7,12 +10,25 @@ import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.charset.Charset;
+import java.util.UUID;
+
 public class Lock extends AppCompatActivity {
 
-    private final String MY_UUID = "55253730-6d50-9898-7b4a2f5fff08";
+    private final String MY_UUID = "c899f350-eab9-11e5-a837-0800200c9a66";
 
     private TextView mLockStatus;
     private Button mLockButton;
+
+    private BluetoothAdapter mBA;
+    private BluetoothServerSocket mServerSocket;
+    private BluetoothSocket mSocket;
+
+    private InputStream mInStream;
+    private OutputStream mOutStream;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -33,5 +49,109 @@ public class Lock extends AppCompatActivity {
                 }
             }
         });
+
+        mBA = BluetoothAdapter.getDefaultAdapter();
+
+        Runnable r = new Runnable() {
+            @Override
+            public void run() {
+                while (true) {
+                    try {
+                        mServerSocket = mBA.listenUsingInsecureRfcommWithServiceRecord("BikeLock", UUID.fromString(MY_UUID));
+                    } catch (IOException e ) { }
+
+                    while (true) {
+                        try {
+                            mSocket = mServerSocket.accept();
+                        } catch (IOException e) {
+                            break;
+                        }
+
+                        if (mSocket != null) {
+                            try {
+                                mServerSocket.close();
+                            } catch (IOException e) {
+                            }
+
+                            try {
+                                mInStream = mSocket.getInputStream();
+                                mOutStream = mSocket.getOutputStream();
+                            } catch (IOException e) {
+                            }
+
+                            byte[] buffer = new byte[1024];
+                            int bytes;
+
+                            try {
+                                bytes = mInStream.read(buffer);
+                            } catch (IOException e) {
+                                //break;
+                            }
+                            // if we get here, we've gotten an unlock attempt
+                            // check if password is correct
+                            boolean query = true;
+                            String a = "test";
+                            String q = "q";
+                            byte[] tmp = a.getBytes();
+                            byte[] byteQ = q.getBytes();
+                            String s = new String(buffer, Charset.forName("UTF-8"));
+                            for (int i = 0; i < byteQ.length; i++) {
+                                if (byteQ[i] != buffer[i]) {
+                                    query = false;
+                                    break;
+                                }
+                            }
+                            if (!query) {
+                                boolean correct = true;
+                                for (int i = 0; i < tmp.length; i++) {
+                                    if (tmp[i] != buffer[i]) {
+                                        String answer = "n";
+                                        byte[] byteAnswer = answer.getBytes();
+                                        try {
+                                            mOutStream.write(byteAnswer);
+                                        } catch (IOException e) { }
+                                        correct = false;
+                                        break;
+                                    }
+                                }
+                                if (correct) {
+                                    mLockStatus.post(new Runnable() {
+                                        @Override
+                                        public void run() {
+                                            mLockStatus.setText(R.string.status_unlocked);
+                                        }
+                                    });
+
+                                    String answer = "y";
+                                    byte[] byteAnswer = answer.getBytes();
+                                    try {
+                                        mOutStream.write(byteAnswer);
+                                    } catch (IOException e) { }
+                                }
+                            } else {
+                                if (mLockStatus.getText().toString().equals("Locked")) {
+                                    String answer = "y";
+                                    byte[] byteAnswer = answer.getBytes();
+                                    try {
+                                        mOutStream.write(byteAnswer);
+                                    } catch (IOException e) { }
+                                } else {
+                                    String answer = "n";
+                                    byte[] byteAnswer = answer.getBytes();
+                                    try {
+                                        mOutStream.write(byteAnswer);
+                                    } catch (IOException e) { }
+                                }
+                            }
+                            try {
+                                mSocket.close();
+                            } catch (IOException e) { }
+                        }
+                    }
+                }
+            }
+        };
+        Thread t = new Thread(r);
+        t.start();
     }
 }
