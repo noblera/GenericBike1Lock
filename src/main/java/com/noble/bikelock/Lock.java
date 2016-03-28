@@ -3,6 +3,7 @@ package com.noble.bikelock;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothServerSocket;
 import android.bluetooth.BluetoothSocket;
+import android.content.Intent;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.view.View;
@@ -52,6 +53,12 @@ public class Lock extends AppCompatActivity {
 
         mBA = BluetoothAdapter.getDefaultAdapter();
 
+        // enable discoverability so client can find lock
+        Intent discoverableIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE);
+        discoverableIntent.putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, 0);
+        startActivity(discoverableIntent);
+
+        // thread for accepting and handling bluetooth commmunication
         Runnable r = new Runnable() {
             @Override
             public void run() {
