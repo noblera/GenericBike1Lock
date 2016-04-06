@@ -13,6 +13,12 @@
         android:padding="24dp"
         tools:text="Bike Locked" />
 
+    <ImageView
+        android:id="@+id/lock_status_image_view"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:padding="24dp" />
+
     <Button
         android:id="@+id/lock_button"
         android:layout_width="wrap_content"
