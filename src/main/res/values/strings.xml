@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">BikeLock</string>
+    <string name="app_name">GenericBike1Lock</string>
     <string name="lock_button">Lock Bike</string>
     <string name="status_locked">Locked</string>
     <string name="status_unlocked">Unlocked</string>
