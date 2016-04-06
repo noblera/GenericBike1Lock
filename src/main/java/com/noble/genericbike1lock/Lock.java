@@ -1,4 +1,4 @@
-package com.noble.bikelock;
+package com.noble.genericbike1lock;
 
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothServerSocket;
@@ -8,6 +8,7 @@ import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -15,6 +16,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.Charset;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
 import java.util.UUID;
 
 public class Lock extends AppCompatActivity {
@@ -23,6 +26,7 @@ public class Lock extends AppCompatActivity {
 
     private TextView mLockStatus;
     private Button mLockButton;
+    private ImageView mLockImage;
 
     private BluetoothAdapter mBA;
     private BluetoothServerSocket mServerSocket;
@@ -31,13 +35,21 @@ public class Lock extends AppCompatActivity {
     private InputStream mInStream;
     private OutputStream mOutStream;
 
+    private final String mSecret = "GenericBike" + Long.toString(1);
+    private long mMovingFactor;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_lock);
 
+        final byte[] secretBytes = mSecret.getBytes();
+
         mLockStatus = (TextView) findViewById(R.id.lock_status_text_view);
         mLockStatus.setText(R.string.status_locked);
+
+        mLockImage = (ImageView) findViewById(R.id.lock_status_image_view);
+        mLockImage.setImageResource(R.drawable.lock_icon);
 
         mLockButton = (Button) findViewById(R.id.lock_button);
         mLockButton.setOnClickListener(new View.OnClickListener() {
@@ -45,6 +57,7 @@ public class Lock extends AppCompatActivity {
             public void onClick(View v) {
                 if (mLockStatus.getText().toString().equals("Unlocked")) {
                     mLockStatus.setText(R.string.status_locked);
+                    mLockImage.setImageResource(R.drawable.lock_icon);
                 } else {
                     Toast.makeText(Lock.this, "Bike Already Locked", Toast.LENGTH_SHORT).show();
                 }
@@ -58,7 +71,7 @@ public class Lock extends AppCompatActivity {
         discoverableIntent.putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, 0);
         startActivity(discoverableIntent);
 
-        // thread for accepting and handling bluetooth commmunication
+        // thread for accepting and handling bluetooth communication
         Runnable r = new Runnable() {
             @Override
             public void run() {
@@ -94,12 +107,10 @@ public class Lock extends AppCompatActivity {
                             } catch (IOException e) {
                                 //break;
                             }
-                            // if we get here, we've gotten an unlock attempt
+                            // if we get here, we've gotten an unlock or query attempt
                             // check if password is correct
                             boolean query = true;
-                            String a = "test";
                             String q = "q";
-                            byte[] tmp = a.getBytes();
                             byte[] byteQ = q.getBytes();
                             String s = new String(buffer, Charset.forName("UTF-8"));
                             for (int i = 0; i < byteQ.length; i++) {
@@ -108,10 +119,18 @@ public class Lock extends AppCompatActivity {
                                     break;
                                 }
                             }
-                            if (!query) {
+                            if (!query) { // this is an unlock attempt, check if password is correct
                                 boolean correct = true;
-                                for (int i = 0; i < tmp.length; i++) {
-                                    if (tmp[i] != buffer[i]) {
+                                String otp = "temp";
+                                // generate OTP
+                                mMovingFactor = (System.currentTimeMillis() / 1000) / 60;
+                                try {
+                                    otp = HOTPAlgorithm.generateOTP(secretBytes, mMovingFactor, 6, 0);
+                                } catch (NoSuchAlgorithmException nsae) { }
+                                  catch (InvalidKeyException ike) { }
+                                byte[] otpBytes = otp.getBytes();
+                                for (int i = 0; i < otpBytes.length; i++) {
+                                    if (otpBytes[i] != buffer[i]) {
                                         String answer = "n";
                                         byte[] byteAnswer = answer.getBytes();
                                         try {
@@ -126,6 +145,13 @@ public class Lock extends AppCompatActivity {
                                         @Override
                                         public void run() {
                                             mLockStatus.setText(R.string.status_unlocked);
+                                        }
+                                    });
+
+                                    mLockImage.post(new Runnable() {
+                                        @Override
+                                        public void run() {
+                                            mLockImage.setImageResource(R.drawable.unlock_icon);
                                         }
                                     });
 
